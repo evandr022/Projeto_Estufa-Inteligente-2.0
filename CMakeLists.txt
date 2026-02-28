@@ -28,52 +28,88 @@ set(PICO_BOARD pico_w CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
-project(Educational_Games C CXX ASM)
+project(Projeto_Estufa_Inteligente C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+# =================================================================
+#  ADICIONAR FREERTOS (NOVO)
+# =================================================================
+# 1. Configura a biblioteca de interface para o ficheiro de configuração
+add_library(freertos_config INTERFACE)
+target_include_directories(freertos_config SYSTEM INTERFACE include)
+
+# Isto permite que o FreeRTOSConfig.h encontre "pico/stdlib.h"
+target_link_libraries(freertos_config INTERFACE pico_stdlib)
+
+# CORREÇÃO AQUI: Mudado de PUBLIC para INTERFACE
+target_compile_definitions(freertos_config INTERFACE PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1)
+
+# 2. Define opções do FreeRTOS
+set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS-Kernel)
+set(FREERTOS_PORT GCC_RP2040 CACHE STRING "" FORCE)
+set(FREERTOS_HEAP "4" CACHE STRING "" FORCE) # Define Heap 4 automaticamente
+
+# 3. Adiciona o Kernel
+add_subdirectory(${FREERTOS_KERNEL_PATH})
+# =================================================================
+
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(Educational_Games
-    main.cpp
-    WS2812.cpp
-    TicTacToeMic.cpp
-    TicTacToe.cpp
+add_library(library
+    src/BH1750.cpp
+    src/lcd_i2c.cpp
+    src/AHT10.cpp
+    src/Servo.cpp
+    src/http_post.cpp
 )
 
-# pull in common dependencies
-target_link_libraries(Educational_Games 
+target_include_directories(library PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+
+target_link_libraries(library 
     pico_stdlib
-    hardware_pio
-    hardware_adc
+    hardware_i2c
+    hardware_pwm
+    freertos_kernel
+    pico_cyw43_arch_lwip_sys_freertos
+    pico_lwip_freertos
 )
 
-if (PICO_CYW43_SUPPORTED)
-    target_link_libraries(Educational_Games pico_cyw43_arch_none)
-endif()
+add_executable(Projeto_Estufa_Inteligente
+    main.cpp
+)
 
+target_link_libraries(Projeto_Estufa_Inteligente
+    pico_stdlib
+    pico_cyw43_arch_lwip_sys_freertos
+    pico_lwip_freertos
+    hardware_pio
+    hardware_i2c
+    hardware_adc
+    hardware_pwm
+    library
+    freertos_kernel
+)
 
-# create map/bin/hex file etc.
-# pico_add_extra_outputs(Educational_Games)
+target_compile_definitions(Projeto_Estufa_Inteligente PRIVATE
+    PICO_CYW43_ARCH_THREADSAFE_BACKGROUND=0
+    PICO_LWIP_LOCAL_CUSTOM_LWIPOPTS_INCLUDE_PATH=1
+)
 
-# add url via pico_set_program_url
-pico_generate_pio_header(Educational_Games ${CMAKE_CURRENT_LIST_DIR}/WS2812.pio)
+target_include_directories(Projeto_Estufa_Inteligente PRIVATE
+   ${CMAKE_CURRENT_LIST_DIR}/include
+)
 
-pico_set_program_name(Educational_Games "WS2812 Example")
-pico_set_program_version(Educational_Games "1.0")
+ #if (PICO_CYW43_SUPPORTED)
+    # Esta função configura internamente os caminhos de include para o pico/cyw43_arch.h
+     #target_link_libraries(Projeto_Estufa_Inteligente pico_cyw43_arch_lwip_sys_freertos)
+ #endif()
 
-pico_enable_stdio_uart(Educational_Games 1)
-pico_enable_stdio_usb(Educational_Games 1)
+pico_set_program_name(Projeto_Estufa_Inteligente "Projeto_Estufa_Inteligente")
+pico_set_program_version(Projeto_Estufa_Inteligente "2.0")
 
-# Add the standard library to the build
-#target_link_libraries(Educational_Games 
- #       pico_stdlib
-#)
+pico_enable_stdio_uart(Projeto_Estufa_Inteligente 1)
+pico_enable_stdio_usb(Projeto_Estufa_Inteligente 1)
 
-# Add any user requested libraries
-#target_link_libraries(Educational_Games
- #       hardware_pio
-#)
-
-pico_add_extra_outputs(Educational_Games)
+pico_add_extra_outputs(Projeto_Estufa_Inteligente)
